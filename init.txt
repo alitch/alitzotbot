@@ -1,0 +1,200 @@
+##### Some basic explanation of option syntax #######################
+# Lines beginning with '#' are comments. The basic syntax is:
+#
+# field = value         or      field.subfield = value
+#
+# Only one specification is allowed per line.
+#
+# The terms are typically case-insensitive except in the fairly obvious
+# cases (the character's name and specifying files or directories when
+# on a system that has case-sensitive filenames).
+#
+# White space is stripped from the beginning and end of the line, as
+# well as immediately before and after the '='. If the option allows
+# multiple comma/semicolon-separated terms (such as
+# autopickup_exceptions), all whitespace around the separator is also
+# trimmed. All other whitespace is left intact.
+
+##### Other files ###################################################
+# You can include other files from your options file using the 'include'
+# option. Crawl will treat it as if you copied the whole text of that file
+# into your options file in that spot. You can uncomment some of the following
+# lines by removing the beginning '#' to include some of the other files in
+# this folder.
+
+##### Lua API - global game state #######################
+#The "crawl" module provides functions that describe the game state or
+#provide utility methods.
+#mpr, mesclr, random2, coinflip, one_chance_in, redraw_screen,
+#input_line, c_input_line, getch, kbhit, flush_input, sendkeys,
+#playsound, runmacro, bindkey, setopt, msgch_num, msgch_name, regex,
+#message_filter, trim, split, game_started, err_trace, args,
+#mark_milestone
+
+##### Lua API - character information #######################
+#The "you" module provides functions that describe the player character.
+#turn_is_over, spells, abilities, name, race, class, god, hp, mp,
+#hunger, strength, intelligence, dexterity, xl, exp, res_poison,
+#res_fire, res_cold, res_draining, res_shock, res_mutation, res_slowing,
+#gourmand, levitating, flying, transform, stop_activity, floor_items,
+#where, branch, subdepth, absdepth
+
+######################################################################
+# Add the following to your options file to automatically pick up
+# armour for non-body armour slots (gloves, boots, etc.), if you don't
+# already have an item equipped there.
+{
+add_autopickup_func(function(it, name)
+  if it.is_useless then
+    return
+  end
+  if it.class(true) == "armour" then
+    local good_slots = {cloak="Cloak", helmet="Helmet", gloves="Gloves",
+                        boots="Boots"}
+    st, _ = it.subtype()
+    if good_slots[st] ~= nil and items.equipped_at(good_slots[st]) == nil then
+      return true
+    end
+  end
+end)
+}
+
+#
+: LOS = 7
+: if you.race() == "Barachi" then
+:   LOS = 8
+: end
+
+### My Code
+{
+function ready()
+  update_stuff()
+end
+
+function autoexplore()
+    magic("o")
+    magic("^K")
+end
+
+initialized = false
+did_first_turn = false
+dump_count = you.turns() + 100 - (you.turns() % 100)
+
+-- We want to call this exactly once each turn.
+function update_stuff()
+  if not initialized then
+    initialize()
+    initialized = true
+  end
+  if you.turns() == old_turn_count then
+    return
+  end
+  old_turn_count = you.turns()
+  if not did_first_turn and you.turns() == 0 then
+    did_first_turn = true
+    first_turn()
+  end
+  if you.turns() >= dump_count then
+    dump_count = dump_count+100
+    crawl.dump_char()
+    crawl.mpr("dumped char")
+  end
+
+  doturn()
+
+  crawl.mpr("turn over")
+end
+
+function doturn()
+  if(countmonsters() == 0) then
+    if(shouldrest()) then
+      magic(string.char(53))
+      return
+    else
+      crawl.mpr("autoexplore")
+      magic("o")
+      return
+    end
+  end
+  if(countmonsters() == 1) then
+    crawl.mpr("hit monster")
+    magic(string.char(11))
+    return
+  end
+  -- either press tab, f or o depending on this variable
+  -- also rush to a choke or whatever
+
+  --at min delay, move to survival skill to prefer/train
+end
+
+function initialize()
+  crawl.mpr("Hello world!")
+end
+
+function first_turn()
+  crawl.mpr("First turn")
+  -- todo: select weapon skill to prefer/train
+end
+
+function lookformonsters()
+  local mon
+  for x = -LOS,LOS do
+    for y = -LOS,LOS do
+      mon = monster.get_monster_at(x, y)
+      if mon ~= nil then
+        crawl.mpr("just saw a " .. mon:name())
+      end
+    end
+  end
+end
+
+function countmonsters()
+  local count = 0
+  for x = -LOS,LOS do
+    for y = -LOS,LOS do
+      if monster.get_monster_at(x, y) ~= nil then
+        count = count + 1
+      end
+    end
+  end
+  return count
+end
+
+function shouldrest()
+  local chp, mhp = you.hp()
+  if(chp < mhp) then return true end
+  return false
+end
+
+}
+
+## Scripts borrowed from qw
+{
+  
+-- We group all species into four categories:
+-- heavy: species that can use arbitrary armour and aren't particularly great
+--        at dodging
+-- dodgy: species that can use arbitrary armour but are very good at dodging
+-- large: species with armour restrictions that want heavy dragon scales
+-- light: species with no body armour or who don't want anything heavier than
+--        7 encumbrance
+function armour_plan()
+  local sp = you.race()
+  if sp == "Ogre" or sp == "Troll" then
+    return "large"
+  elseif sp == "Deep Elf" or sp == "Kobold"
+         or sp == "Merfolk" then
+    return "dodgy"
+  elseif sp:find("Draconian") or sp == "Felid" or sp == "Octopode"
+         or sp == "Spriggan" then
+    return "light"
+  else
+    return "heavy"
+  end
+end
+
+function magic(command)
+  --crawl.process_keys(command .. string.char(27) .. string.char(27) .. string.char(27))
+  crawl.process_keys(command .. string.char(27))
+end
+}
