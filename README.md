@@ -12,7 +12,7 @@ Currently the bot will:
 * paste the contents of init.txt
 * save and run DCSS and start a game
 
-## Running locally
+### Running locally
 * download DCSS
 * in the directory where DCSS is installed, replace docs/init.txt with the init.txt found in this repo, a backup copy of the original init.txt should be saved.
 * run DCSS and start a game
