@@ -1,16 +1,56 @@
-# Custom Options
-default_manual_training = true
-travel_delay = 1
-explore_delay = 1
-rest_delay = -1
-confirm_butcher = never
-auto_butcher = very full
+######## Custom Options ########
+# 1 - Starting Screen
+  name = Andre's Bot
+  default_manual_training = true
+  #combo = MiBe
+# 3-f Travel and Exploration
+  travel_delay = -1
+  explore_delay = -1
+  rest_delay = -1
+  explore_greedy = true
+  explore_stop =
+  explore_wall_bias = 10
+# 3-g Command Enhancements
+  confirm_butcher = never
+  auto_butcher = very full
+  autofight_throw = true
+  rest_wait_both = true
+  auto_switch = false
+  default_manual_training = true
+  autopickup_no_burden = false
+  auto_exclude =
+  autofight_caught = true
+  autofight_wait = true
+# 3-h Message and Display Improvements
+  hp_warning = 0
+  show_more = false
+  show_newturn_mark = false
+# 3-j Missiles    
+  fire_order  = launcher, return
+  fire_order += javelin, tomahawk, stone, rock,
 
-# Code begins here
+# junk to sort later
+  show_travel_trail = true
+  skill_focus = false
+  default_show_all_skills = true
+  use_animations =
+  force_more_message =
+  tile_water_anim = true
+  tile_realtime_anim = true
+
+
+
+
+######## Message Options ########
+message_colour ^= mute:Unknown command
+message_colour += mute:Okay, then
+
+######## Code begins here ########
 {
 local initialized = false
 local did_first_turn = false
 local dump_count = you.turns() + 100 - (you.turns() % 100)
+local is_resting = false
 local LOS = 7
 if you.race() == "Barachi" then LOS = 8 end
 
@@ -49,10 +89,72 @@ function countmonsters()
   return count
 end
 
-function shouldrest()
+function should_rest()
   local chp, mhp = you.hp()
-  if(chp < mhp) then 
+  if(chp < mhp * 0.9) then 
     return true 
+  else
+    return false
+  end
+end
+
+function should_eat()
+  return (you.hunger_name() == "hungry" or you.hunger_name() == "very hungry" or you.hunger_name() == "starving" or you.hunger_name() == "fainting")
+end
+
+function choose_stat_gain()
+  local ap = armour_plan()
+  if ap == "heavy" or ap == "large" then
+    return "s"
+  elseif ap == "light" then
+    return "d"
+  else
+    local str,_ = you.strength()
+    local dex,_ = you.dexterity()
+    if 3*str < 2*dex then
+      return "s"
+    else
+      return "d"
+    end
+  end
+end
+
+function armour_plan()
+  local sp = you.race()
+  if sp == "Ogre" or sp == "Troll" then
+    return "large"
+  elseif sp == "Deep Elf" or sp == "Kobold"
+         or sp == "Merfolk" then
+    return "dodgy"
+  elseif sp:find("Draconian") or sp == "Felid" or sp == "Octopode"
+         or sp == "Spriggan" then
+    return "light"
+  else
+    return "heavy"
+  end
+end
+
+function weapon_choice()
+  sp = you.race()
+  if sp == "Felid" or sp == "Troll" or sp == "Ghoul" then
+    return "Unarmed Combat"
+  elseif sp == "Ogre" or sp == "Kobold" then
+    return "Maces & Flails"
+  elseif sp == "Merfolk" then
+    return "Polearms"
+  elseif sp == "Spriggan" then
+    return "Short Blades"
+  else
+    return "Axes"
+  end
+end
+
+-- I/O begins here
+
+function check_messages(str, num)
+  local recent_messages = crawl.messages(num)
+  if recent_messages:find(str) then
+    return true
   else
     return false
   end
@@ -89,21 +191,30 @@ end
 
 -- This runs exactly once each turn.
 function do_turn()
-  if(countmonsters() == 0) then
-    if(shouldrest()) then
-      press(".")
-      return
-    else
-      crawl.mpr("autoexplore")
-      magic("o")
+  if countmonsters() == 0 then
+    if should_eat() then
+      press("o")
       return
     end
+    if should_rest() then
+      press("s")
+      you.turn_is_over() 
+      -- the text says that hes resting here but hes not
+      return
+    end
+    if check_messages("Done exploring.", 3) then
+      -- descend a floor if you cant autoexplore
+      press("G>")
+      return
+    end
+    press("o")
   end
+
   if(countmonsters() == 1) then
-    crawl.mpr("hit monster")
-    magic(string.char(11))
+    press(string.char(11))
     return
   end
+
   if(countmonsters() > 1) then
     -- try to find a small spot to squeeze into then fight away
   end
@@ -111,12 +222,13 @@ function do_turn()
   -- either press tab, f or o depending on this variable
   -- also rush to a choke or whatever
 
-  --at min delay, move to survival skill to prefer/train
+  --at min delay, shift skill to a survival skill to prefer/train
 end
 
 function ready()
   pre_turn()
   do_turn()
+  crawl.delay(1)
 end
 }
 
